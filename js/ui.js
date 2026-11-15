@@ -208,22 +208,47 @@ function footer(go) {
     h('p', { class: 'version', text: `Packer · ${APP_VERSION}` }));
 }
 
-/** Trip notes: two text boxes, saved as you type. */
+/** Trip notes: one card per note, saved as you type, with + to add a card. */
 export function notesScreen({ go }) {
-  const boxes = [['oregon', 'Central Oregon notes'], ['goals', 'Trip goals']].map(([id, label]) => {
-    const box = h('textarea', { class: 'field notes-field', 'aria-label': label, spellcheck: 'true' });
+  const saved = h('p', { class: 'hint last-saved' });
+  const showSaved = (ts) => {
+    if (!ts || ts < 1000) { saved.textContent = ''; return; }
+    const d = new Date(ts), same = d.toDateString() === new Date().toDateString();
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    saved.textContent = 'Last saved ' + (same ? time : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + time);
+  };
+  const cards = store.noteCards();
+  showSaved(Math.max(0, ...cards.map((c) => c.updatedAt || 0)));
+  const boxes = cards.map(({ id, title }) => {
+    const box = h('textarea', { class: 'field notes-field', 'aria-label': title, spellcheck: 'true' });
     box.value = store.notesText(id);
     let timer;
-    const flush = () => { clearTimeout(timer); if (box.value !== store.notesText(id)) store.setNotes(id, box.value); };
+    const flush = () => { clearTimeout(timer); if (box.value !== store.notesText(id)) { store.setNotes(id, box.value); showSaved(store.noteUpdatedAt(id)); } };
     const grow = () => { box.style.height = 'auto'; box.style.height = Math.max(160, box.scrollHeight + 4) + 'px'; };
     box.addEventListener('input', () => { grow(); clearTimeout(timer); timer = setTimeout(flush, 400); });
     box.addEventListener('blur', flush);
     setTimeout(grow, 0);
-    return { box, flush, el: h('label', { class: 'label notes-label' }, label, box) };
+    return { flush, el: h('label', { class: 'label notes-label' }, title, box) };
   });
+  const flushAll = () => boxes.forEach((b) => b.flush());
+  const add = h('button', { class: 'add-btn add-card', 'aria-label': 'Add a notes card', onclick: async () => {
+    flushAll();
+    const title = await titleBox();
+    if (title) { store.addNoteCard(title); go('#/notes'); }
+  } }, '+');
   return h('div', { class: 'screen' },
-    header({ back: { label: 'Trips', onClick: () => { boxes.forEach((b) => b.flush()); go('#/'); } }, title: 'Trip notes' }),
-    h('main', { class: 'content' }, boxes.map((b) => b.el), h('p', { class: 'hint', text: 'Saved automatically.' })));
+    header({ back: { label: 'Trips', onClick: () => { flushAll(); go('#/'); } }, title: 'Trip notes' }),
+    h('main', { class: 'content' }, boxes.map((b) => b.el), add, saved));
+}
+
+function titleBox() {
+  return openSheet((s, close) => {
+    const input = h('input', { type: 'text', class: 'field', 'aria-label': 'Card title', placeholder: 'e.g. Gear to buy', enterkeyhint: 'done' });
+    const submit = () => { const v = input.value.trim(); if (v) close(v); else input.focus(); };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    s.append(h('h2', { class: 'sheet-title', text: 'New notes card' }), h('label', { class: 'label' }, 'Title', input),
+      h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: () => close(null) }, 'Cancel'), h('button', { class: 'btn primary', onclick: submit }, 'Add')));
+  });
 }
 
 /** Calls onLong when the element is pressed and held (or right-clicked). Returns a check for "was that a hold?". */
@@ -246,17 +271,63 @@ const ICONS = {
   'h-clothes': '👕', 'h-necessities': '🎒', 'h-hygiene': '🪥', 'h-medication': '💊', 'h-bedding': '🛏️',
   'h-essentials': '🪓', 'h-garage': '🏠', 'h-bin': '🧰', 'h-last-minute': '⏰', 'h-artimes': '🐕',
   'h-scouting': '💻', 'h-coding': '💻', 'h-rock-tools': '⛏️', 'h-sunstone': '🔦', 'h-fun': '🎸', 'h-winter': '❄️',
-  'h-meal-choices': '🍽️', 'h-unpack': '📥', 'h-truck': '🛻', 'h-icebox': '🗃️',
+  'h-meal-choices': '🍽️', 'h-unpack': '📥', 'h-truck': '🛻', 'h-icebox': '🗃️', 'h-resupply': '🛒', 'h-seasonal': '🍂',
 };
 const iconFor = (h) => h.icon || ICONS[h.id] || '📦';
 
 // Meal sub-lists in a fixed order: Breakfast, Lunch, Dinner, Snacks, then anything else.
-const SUB_ORDER = ['Breakfast', 'Lunch (driving)', 'Dinner', 'Snacks'];
+const SUB_ORDER = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
 function subGroups(items) {
   const map = new Map();
   for (const i of items) { const k = i.sub || ''; if (!map.has(k)) map.set(k, []); map.get(k).push(i); }
   const rank = (k) => (k === '' ? -1 : SUB_ORDER.includes(k) ? SUB_ORDER.indexOf(k) : 99);
   return [...map.entries()].sort((a, b) => rank(a[0]) - rank(b[0]));
+}
+
+// Resupply: store at the top, list to order, then order history by date and store.
+function resupplyBody(tripId, items, askDelete) {
+  const storeBox = h('input', { type: 'text', class: 'field', placeholder: 'Store, e.g. Walmart', 'aria-label': 'Store', enterkeyhint: 'done' });
+  storeBox.value = store.resupplyStore();
+  let timer;
+  storeBox.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => store.setResupplyStore(storeBox.value), 300); });
+  storeBox.addEventListener('blur', () => { clearTimeout(timer); if (storeBox.value !== store.resupplyStore()) store.setResupplyStore(storeBox.value); });
+
+  const holdRow = (i, el) => { const held = onHold(el, () => askDelete(i)); return held; };
+  const toOrder = items.filter((i) => !i.ordered).map((i) => {
+    const btn = h('button', { class: 'item' }, h('span', { class: 'box', text: icon.check }), h('span', { class: 'item-name', text: i.name }));
+    const held = holdRow(i, btn);
+    btn.addEventListener('click', () => {
+      if (held()) return;
+      if (storeBox.value !== store.resupplyStore()) store.setResupplyStore(storeBox.value);
+      store.markOrdered(i.id);
+    });
+    return h('li', {}, btn);
+  });
+
+  const groups = new Map();
+  items.filter((i) => i.ordered).forEach((i) => {
+    const k = i.ordered.date + '|' + i.ordered.store;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(i);
+  });
+  const fmt = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const history = [...groups.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([k, list]) => {
+    const [date, shop] = k.split('|');
+    return h('div', { class: 'order-group' },
+      h('p', { class: 'order-head', text: `${fmt(date)} · ${shop}` }),
+      h('ul', { class: 'items' }, list.map((i) => {
+        const btn = h('button', { class: 'item packed' }, h('span', { class: 'box', text: icon.check }), h('span', { class: 'item-name', text: i.name }));
+        const held = holdRow(i, btn);
+        btn.addEventListener('click', () => { if (!held()) store.unmarkOrdered(i.id); }); // tap to move back to the list
+        return h('li', {}, btn);
+      })));
+  });
+
+  return h('div', { class: 'resupply' },
+    h('label', { class: 'label' }, 'Ordering from', storeBox),
+    toOrder.length ? h('ul', { class: 'items' }, toOrder) : h('p', { class: 'hint off-hint', text: 'Nothing to order. Tap + to add items.' }),
+    history.length ? h('p', { class: 'sub-label', text: 'Order history' }) : null,
+    ...history);
 }
 
 // Which categories are open or closed (kept while the app is open).
@@ -272,15 +343,19 @@ export function tripScreen({ tripId, go, render }) {
 
   const sections = groups.map(({ heading, items, on }) => {
     const info = store.isInfo(heading);
+    const resupply = store.isResupply(heading);
     const done = items.filter((i) => store.isPacked(tripId, i.id)).length;
-    const complete = !info && items.length > 0 && done === items.length;
+    const complete = !info && !resupply && items.length > 0 && done === items.length;
     const key = tripId + '|' + heading.id;
     // a category closes by itself the moment it is fully packed
     if (complete && !wasComplete.has(key)) collapse.delete(key);
     complete ? wasComplete.add(key) : wasComplete.delete(key);
     const open = collapse.has(key) ? collapse.get(key) : false; // every category starts closed
 
+    const toOrder = items.filter((i) => !i.ordered).length;
     const status = !on ? null
+      : resupply ? h('span', { class: 'chip' + (toOrder ? ' todo' : ''), text: `${toOrder} to order` })
+      : heading.id === 'h-meal-choices' ? null
       : info ? h('span', { class: 'chip', text: `${items.length} items` })
       : complete ? h('span', { class: 'chip done', text: '✓ Done' })
       : open ? null : h('span', { class: 'chip todo', text: `${done} of ${items.length}` });
@@ -319,9 +394,10 @@ export function tripScreen({ tripId, go, render }) {
             class: 'opt-toggle' + (on ? ' on' : ''), 'aria-pressed': String(on),
             onclick: () => { if (!on) collapse.set(key, true); store.toggleSection(tripId, heading.id); }, // ticking opens it
           }, h('span', { class: 'box', text: icon.check }), on ? 'Bringing' : 'Optional') : null,
-          on && open ? h('button', { class: 'add-btn', 'aria-label': `Add item to ${heading.name}`, onclick: () => itemPopup(tripId, null, heading.id) }, '+') : null)),
+          on && open && heading.id !== 'h-meal-choices' ? h('button', { class: 'add-btn', 'aria-label': `Add item to ${heading.name}`, onclick: () => itemPopup(tripId, null, heading.id) }, '+') : null)),
       !on ? h('p', { class: 'hint off-hint', text: `${items.length} items · tap Optional to include` }) : null,
-      on && open ? h('ul', { class: 'items' }, subGroups(items).flatMap(([sub, list]) => {
+      on && open && resupply ? resupplyBody(tripId, items, askDelete) : null,
+      on && open && !resupply ? h('ul', { class: 'items' }, subGroups(items).flatMap(([sub, list]) => {
         if (!sub) return list.map(row);
         const sk = key + '|' + sub, subOpen = !!collapse.get(sk);
         const head = h('li', {}, h('button', { class: 'sub-head', 'aria-expanded': String(subOpen), onclick: () => { collapse.set(sk, !subOpen); rerender(); } },

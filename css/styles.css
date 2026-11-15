@@ -256,3 +256,10 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .sub-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 4px; background: none; border: 0; cursor: pointer;
   font-size: 15px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-ink); text-align: left; }
 .sub-head .count { margin-left: auto; color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+/* ---------- resupply ---------- */
+.resupply { display: flex; flex-direction: column; gap: 10px; padding-bottom: 4px; }
+.order-group { display: flex; flex-direction: column; gap: 6px; }
+.order-head { margin: 4px 4px 0; font-weight: 700; color: var(--muted); font-size: 15px; }
+.add-card { align-self: center; }
+.last-saved { margin-top: 0; }

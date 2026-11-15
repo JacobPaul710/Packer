@@ -37,7 +37,7 @@ function seed() { const d = emptyData(); addStarter(d); return d; }
 
 // ---------- persistence ----------
 const MIGRATED = 'packlist.migrated';
-const CURRENT = '16';
+const CURRENT = '17';
 
 export function load() {
   try { data = JSON.parse(localStorage.getItem(KEY)); } catch { data = null; }
@@ -56,6 +56,7 @@ function migrate() {
   if (from < 14) migrate14();
   if (from < 15) migrate15();
   if (from < 16) migrate16();
+  if (from < 17) migrate17();
   save(false);
   localStorage.setItem(MIGRATED, CURRENT);
 }
@@ -127,6 +128,39 @@ function migrate16() {
   });
 }
 
+// Patch 19: garage list split up; new Seasonal category.
+function garageCleanup(t) {
+  const live = (id) => data.headings[id] && !data.headings[id].deleted;
+  if (!live('h-garage')) return;
+  const ALL = ['t-camp', 't-scout', 't-rock'];
+  const find = (name) => Object.values(data.items).find((i) => !i.deleted && i.headingId === 'h-garage' && i.name === name);
+  const maxC = () => Math.max(0, ...Object.values(data.items).map((i) => i.created || 0));
+  const upd = (it, patch) => { if (it) data.items[it.id] = { ...it, ...patch, updatedAt: t }; };
+  const add = (id, name, headingId) => { if (!data.items[id]) data.items[id] = { id, name, headingId, trips: ALL, created: maxC() + 1, updatedAt: t }; };
+  if (live('h-necessities')) {
+    upd(find('Containers of drinking water'), { headingId: 'h-necessities', created: maxC() + 1 });
+    add('i-p19-howl-r4', 'Howl R4', 'h-necessities');
+  }
+  if (live('h-truck')) upd(find('Camp chair'), { headingId: 'h-truck', created: maxC() + 1 });
+  ['Fire starter', 'Propane burner', 'Kindling', 'Firewood'].forEach((n) => upd(find(n), { deleted: true }));
+  const winter = data.headings['h-winter'];
+  if (!data.headings['h-seasonal']) data.headings['h-seasonal'] = { id: 'h-seasonal', name: 'Seasonal', order: winter ? winter.order - 0.5 : 998, updatedAt: t };
+  add('i-p19-kindling-firewood', 'Kindling/firewood', 'h-seasonal');
+  for (const i of Object.values(data.items)) if (!i.deleted && i.headingId === 'h-garage') upd(i, { headingId: 'h-truck' });
+  data.headings['h-garage'] = { ...data.headings['h-garage'], deleted: true, updatedAt: t };
+}
+
+// Patch 19: Resupply section on Scout, between Pantry inventory and Immediate unpack.
+function migrate17() {
+  const t = now();
+  for (const i of Object.values(data.items)) if (!i.deleted && i.sub === 'Lunch (driving)') data.items[i.id] = { ...i, sub: 'Lunch', updatedAt: t };
+  garageCleanup(t);
+  if (data.headings['h-resupply']) return;
+  const pantry = data.headings['h-pantry'], unpack = data.headings['h-unpack'];
+  const order = pantry && unpack ? (pantry.order + unpack.order) / 2 : 999;
+  data.headings['h-resupply'] = { id: 'h-resupply', name: 'Resupply', kind: 'resupply', showOn: ['t-scout'], order, updatedAt: now() };
+}
+
 function migrate9() {
   const t = now();
   data.sections = data.sections || {};
@@ -163,7 +197,7 @@ export function itemsForTrip(tripId) {
 export function groupedForTrip(tripId) {
   const items = itemsForTrip(tripId);
   const groups = headings().map((h) => ({ heading: h, on: sectionOn(tripId, h), items: items.filter((i) => i.headingId === h.id) }));
-  return groups.filter((g) => g.items.length);
+  return groups.filter((g) => g.items.length || g.heading.showOn?.includes(tripId)); // some sections show even when empty
 }
 
 // Optional sections (like Fun stuff): off by default; while off, their items are hidden and not counted.
@@ -178,11 +212,44 @@ export function toggleSection(tripId, headingId) {
   save();
 }
 export const isInfo = (h) => (typeof h === 'string' ? heading(h) : h)?.kind === 'info';
-const countedItems = (tripId) => itemsForTrip(tripId).filter((i) => sectionOn(tripId, i.headingId) && !isInfo(i.headingId));
+export const isResupply = (h) => (typeof h === 'string' ? heading(h) : h)?.kind === 'resupply';
+const countedItems = (tripId) => itemsForTrip(tripId).filter((i) => sectionOn(tripId, i.headingId) && !isInfo(i.headingId) && !isResupply(i.headingId));
+
+// Resupply: check an item when you order it; it moves to order history with the date and store.
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+export function resupplyStore() { return notesText('resupply-store'); }
+export function setResupplyStore(text) { data.notes['resupply-store'] = { id: 'resupply-store', kind: 'setting', text, updatedAt: now() }; save(false); listeners.forEach((fn) => fn(data, 'notes')); }
+export function markOrdered(itemId) {
+  const i = data.items[itemId];
+  data.items[itemId] = { ...i, ordered: { date: today(), store: resupplyStore().trim() || 'No store' }, updatedAt: now() };
+  save();
+}
+export function unmarkOrdered(itemId) {
+  const { ordered, ...rest } = data.items[itemId];
+  data.items[itemId] = { ...rest, updatedAt: now() };
+  save();
+}
 
 // Trip notes: one free-text note.
 export function notesText(id) { const n = data.notes?.[id]; return n && !n.deleted ? n.text || '' : ''; }
-export function setNotes(id, text) { data.notes[id] = { id, text, updatedAt: now() }; save(false); listeners.forEach((fn) => fn(data, 'notes')); }
+export function setNotes(id, text) { data.notes[id] = { ...(data.notes[id] || {}), id, text, updatedAt: now() }; save(false); listeners.forEach((fn) => fn(data, 'notes')); }
+export function noteUpdatedAt(id) { return data.notes?.[id]?.updatedAt || 0; }
+
+// Note cards on the Trip notes screen.
+const DEFAULT_TITLES = { oregon: 'Central Oregon notes', goals: 'Trip goals' };
+export function noteCards() {
+  return Object.values(data.notes || {})
+    .filter((n) => !n.deleted && n.id !== 'main' && n.kind !== 'setting')
+    .map((n) => ({ ...n, title: n.title || DEFAULT_TITLES[n.id] || 'Notes' }))
+    .sort((a, b) => (a.order ?? (a.id === 'oregon' ? 0 : 1)) - (b.order ?? (b.id === 'oregon' ? 0 : 1)));
+}
+export function addNoteCard(title) {
+  const id = 'n-' + uid();
+  const order = Math.max(1, ...noteCards().map((n) => n.order ?? 1)) + 1;
+  data.notes[id] = { id, title: title.trim(), text: '', order, updatedAt: now() };
+  save(false); listeners.forEach((fn) => fn(data, 'notes'));
+  return id;
+}
 
 /** Items that are on no trip: the hidden pile. */
 export function hiddenItems() {

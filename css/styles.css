@@ -263,3 +263,7 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .order-head { margin: 4px 4px 0; font-weight: 700; color: var(--muted); font-size: 15px; }
 .add-card { align-self: center; }
 .last-saved { margin-top: 0; }
+
+/* tick-to-open group inside a category (Winter) */
+.item.opt-sub.on { border-color: var(--accent); }
+.item.opt-sub.on .box { background: var(--accent); border-color: var(--accent); color: #fff; }

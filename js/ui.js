@@ -344,8 +344,9 @@ export function tripScreen({ tripId, go, render }) {
   const sections = groups.map(({ heading, items, on }) => {
     const info = store.isInfo(heading);
     const resupply = store.isResupply(heading);
-    const done = items.filter((i) => store.isPacked(tripId, i.id)).length;
-    const complete = !info && !resupply && items.length > 0 && done === items.length;
+    const counted = items.filter((i) => store.itemCounts(tripId, i));
+    const done = counted.filter((i) => store.isPacked(tripId, i.id)).length;
+    const complete = !info && !resupply && counted.length > 0 && done === counted.length;
     const key = tripId + '|' + heading.id;
     // a category closes by itself the moment it is fully packed
     if (complete && !wasComplete.has(key)) collapse.delete(key);
@@ -358,7 +359,7 @@ export function tripScreen({ tripId, go, render }) {
       : heading.id === 'h-meal-choices' ? null
       : info ? h('span', { class: 'chip', text: `${items.length} items` })
       : complete ? h('span', { class: 'chip done', text: '✓ Done' })
-      : open ? null : h('span', { class: 'chip todo', text: `${done} of ${items.length}` });
+      : open ? null : h('span', { class: 'chip todo', text: `${done} of ${counted.length}` });
     const title = h('button', { class: 'group-title', 'aria-expanded': String(on && open) },
       on ? h('span', { class: 'chev' + (open ? ' open' : ''), text: '›' }) : null,
       h('span', { class: 'cat-icon', text: iconFor(heading), 'aria-hidden': 'true' }), h('span', { text: heading.name }));
@@ -399,6 +400,15 @@ export function tripScreen({ tripId, go, render }) {
       on && open && resupply ? resupplyBody(tripId, items, askDelete) : null,
       on && open && !resupply ? h('ul', { class: 'items' }, subGroups(items).flatMap(([sub, list]) => {
         if (!sub) return list.map(row);
+        if (heading.optionalSubs?.includes(sub)) {
+          // tick-to-open group (like Winter): checkbox row, items open underneath when ticked
+          const subIsOn = store.subOn(tripId, heading.id, sub);
+          const got = list.filter((i) => store.isPacked(tripId, i.id)).length;
+          const toggle = h('button', { class: 'item opt-sub' + (subIsOn ? ' on' : ''), 'aria-pressed': String(subIsOn), onclick: () => store.toggleSub(tripId, heading.id, sub) },
+            h('span', { class: 'box', text: icon.check }), h('span', { class: 'item-name', text: sub }),
+            h('span', { class: 'parts-count', text: subIsOn ? `${got} of ${list.length}` : `${list.length} items` }));
+          return [h('li', {}, toggle, subIsOn ? h('ul', { class: 'parts' }, list.map(row)) : null)];
+        }
         const sk = key + '|' + sub, subOpen = !!collapse.get(sk);
         const head = h('li', {}, h('button', { class: 'sub-head', 'aria-expanded': String(subOpen), onclick: () => { collapse.set(sk, !subOpen); rerender(); } },
           h('span', { class: 'chev' + (subOpen ? ' open' : ''), text: '›' }), sub, h('span', { class: 'count', text: `${list.length}` })));

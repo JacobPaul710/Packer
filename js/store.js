@@ -37,7 +37,7 @@ function seed() { const d = emptyData(); addStarter(d); return d; }
 
 // ---------- persistence ----------
 const MIGRATED = 'packlist.migrated';
-const CURRENT = '17';
+const CURRENT = '18';
 
 export function load() {
   try { data = JSON.parse(localStorage.getItem(KEY)); } catch { data = null; }
@@ -57,6 +57,7 @@ function migrate() {
   if (from < 15) migrate15();
   if (from < 16) migrate16();
   if (from < 17) migrate17();
+  if (from < 18) migrate18();
   save(false);
   localStorage.setItem(MIGRATED, CURRENT);
 }
@@ -126,6 +127,21 @@ function migrate16() {
     const h = data.headings[id];
     if (h && !h.deleted) data.headings[id] = { ...h, order, updatedAt: t };
   });
+}
+
+// Patch 20: Winter becomes a tick-to-open group inside Seasonal; Seasonal moves above Fun stuff.
+function migrate18() {
+  const t = now();
+  const seasonal = data.headings['h-seasonal'], winter = data.headings['h-winter'];
+  if (!seasonal || seasonal.deleted) return;
+  const fun = data.headings['h-fun'];
+  data.headings['h-seasonal'] = { ...seasonal, optionalSubs: ['Winter'], order: fun && !fun.deleted ? fun.order - 0.5 : seasonal.order, updatedAt: t };
+  if (!winter || winter.deleted) return;
+  for (const i of Object.values(data.items)) if (!i.deleted && i.headingId === 'h-winter') data.items[i.id] = { ...i, headingId: 'h-seasonal', sub: 'Winter', updatedAt: t };
+  for (const tripId of ['t-camp', 't-scout', 't-rock']) {
+    if (data.sections?.[tripId + '|h-winter']?.v) data.sections[tripId + '|h-seasonal#Winter'] = { v: true, updatedAt: t };
+  }
+  data.headings['h-winter'] = { ...winter, deleted: true, updatedAt: t };
 }
 
 // Patch 19: garage list split up; new Seasonal category.
@@ -211,9 +227,20 @@ export function toggleSection(tripId, headingId) {
   data.sections[skey(tripId, headingId)] = { v: !sectionOn(tripId, headingId), updatedAt: now() };
   save();
 }
+// Optional groups inside a category (like Winter inside Seasonal): tick to include.
+export function subOn(tripId, headingId, sub) { return !!data.sections?.[skey(tripId, headingId) + '#' + sub]?.v; }
+export function toggleSub(tripId, headingId, sub) {
+  data.sections[skey(tripId, headingId) + '#' + sub] = { v: !subOn(tripId, headingId, sub), updatedAt: now() };
+  save();
+}
+/** Is this item part of the count right now? (Optional groups that are off don't count.) */
+export function itemCounts(tripId, i) {
+  const hd = heading(i.headingId);
+  return !(hd?.optionalSubs?.includes(i.sub)) || subOn(tripId, i.headingId, i.sub);
+}
 export const isInfo = (h) => (typeof h === 'string' ? heading(h) : h)?.kind === 'info';
 export const isResupply = (h) => (typeof h === 'string' ? heading(h) : h)?.kind === 'resupply';
-const countedItems = (tripId) => itemsForTrip(tripId).filter((i) => sectionOn(tripId, i.headingId) && !isInfo(i.headingId) && !isResupply(i.headingId));
+const countedItems = (tripId) => itemsForTrip(tripId).filter((i) => sectionOn(tripId, i.headingId) && !isInfo(i.headingId) && !isResupply(i.headingId) && itemCounts(tripId, i));
 
 // Resupply: check an item when you order it; it moves to order history with the date and store.
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };

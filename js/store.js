@@ -16,7 +16,7 @@ function emptyData() {
 // Reference sections: shown closed, nothing to check, not counted in progress.
 const INFO = ['h-breakfast', 'h-lunch', 'h-dinner', 'h-meal-choices', 'h-unpack'];
 
-const TRIPS = [['t-camp', 'Traditional', 'camp'], ['t-scout', 'Scout', 'scout'], ['t-rock', 'Rock Hounding', 'rock']];
+const TRIPS = [['t-camp', 'Traditional', 'camp'], ['t-scout', 'Scout', 'scout'], ['t-rock', 'Rockhound', 'rock']];
 const tripIdFor = { camp: 't-camp', scout: 't-scout', rock: 't-rock' };
 
 /** Adds the starter trips, headings, items and notes. Never overwrites records that already exist. */
@@ -37,7 +37,7 @@ function seed() { const d = emptyData(); addStarter(d); return d; }
 
 // ---------- persistence ----------
 const MIGRATED = 'packlist.migrated';
-const CURRENT = '19';
+const CURRENT = '20';
 
 export function load() {
   try { data = JSON.parse(localStorage.getItem(KEY)); } catch { data = null; }
@@ -59,6 +59,7 @@ function migrate() {
   if (from < 17) migrate17();
   if (from < 18) migrate18();
   if (from < 19) migrate19();
+  if (from < 20) migrate20();
   save(false);
   localStorage.setItem(MIGRATED, CURRENT);
 }
@@ -128,6 +129,12 @@ function migrate16() {
     const h = data.headings[id];
     if (h && !h.deleted) data.headings[id] = { ...h, order, updatedAt: t };
   });
+}
+
+// v0.18.20: Rock Hounding is renamed Rockhound.
+function migrate20() {
+  const r = data.trips['t-rock'];
+  if (r && !r.deleted && r.name === 'Rock Hounding') data.trips['t-rock'] = { ...r, name: 'Rockhound', updatedAt: now() };
 }
 
 // Patch 21: Seasonal becomes Winter, an optional category on every trip (kindling/firewood included).

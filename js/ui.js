@@ -183,7 +183,6 @@ export function homeScreen({ go }) {
     const art = h('span', { class: 'tile-art' + (isPixel(t.theme) ? ' pixel' : ''), style: `background-image:url("${sceneURL(t.theme)}")`, 'aria-hidden': 'true' });
     return h('button', { class: 'tile' + (p.complete ? ' done' : ''), onclick: () => go('#/trip/' + t.id) }, art,
       h('span', { class: 'tile-name', text: t.name }),
-      h('span', { class: 'tile-progress', text: `${p.packed} of ${p.total} packed` }),
       h('span', { class: 'meter' }, h('span', { style: `width:${p.total ? (100 * p.packed) / p.total : 0}%` })));
   });
 

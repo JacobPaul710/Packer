@@ -2,7 +2,7 @@ import { isDark } from './mode.js';
 // Pixel-art scenes for trip tiles. Each scene is drawn once on a tiny canvas and scaled up.
 // To add a theme later: add a draw function to SCENES and a name to THEMES.
 
-export const THEMES = { camp: 'Camp', scout: 'Scouting', rock: 'Rock hounding', plain: 'Plain' };
+export const THEMES = { camp: 'Camp', scout: 'Scouting', rock: 'Rockhound', plain: 'Plain' };
 const W = 96, H = 34;
 const cache = {};
 

@@ -267,3 +267,10 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 /* tick-to-open group inside a category (Winter) */
 .item.opt-sub.on { border-color: var(--accent); }
 .item.opt-sub.on .box { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.search-row { display: flex; gap: 8px; align-items: stretch; }
+.search-row .item { flex: 1; min-width: 0; }
+.search-btn {
+  flex: none; width: 60px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+  border-radius: var(--radius); border: 2px solid var(--line); background: var(--card); font-size: 22px;
+}

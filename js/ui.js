@@ -284,6 +284,14 @@ function subGroups(items) {
   return [...map.entries()].sort((a, b) => rank(a[0]) - rank(b[0]));
 }
 
+// Store search pages. Type one of these stores and each item gets a search button.
+const STORES = [
+  [/walmart/i, (q) => 'https://www.walmart.com/search?q=' + encodeURIComponent(q)],
+  [/target/i, (q) => 'https://www.target.com/s?searchTerm=' + encodeURIComponent(q)],
+  [/fred\s*meyer/i, (q) => 'https://www.fredmeyer.com/search?query=' + encodeURIComponent(q)],
+];
+const searchUrl = (storeName) => STORES.find(([re]) => re.test(storeName || ''))?.[1] || null;
+
 // Resupply: store at the top, list to order, then order history by date and store.
 function resupplyBody(tripId, items, askDelete) {
   const storeBox = h('input', { type: 'text', class: 'field', placeholder: 'Store, e.g. Walmart', 'aria-label': 'Store', enterkeyhint: 'done' });
@@ -293,6 +301,11 @@ function resupplyBody(tripId, items, askDelete) {
   storeBox.addEventListener('blur', () => { clearTimeout(timer); if (storeBox.value !== store.resupplyStore()) store.setResupplyStore(storeBox.value); });
 
   const holdRow = (i, el) => { const held = onHold(el, () => askDelete(i)); return held; };
+  const links = [];
+  const syncLinks = () => {
+    const url = searchUrl(storeBox.value);
+    links.forEach(({ a, name }) => { a.classList.toggle('hidden', !url); if (url) a.href = url(name); });
+  };
   const toOrder = items.filter((i) => !i.ordered).map((i) => {
     const btn = h('button', { class: 'item' }, h('span', { class: 'box', text: icon.check }), h('span', { class: 'item-name', text: i.name }));
     const held = holdRow(i, btn);
@@ -301,8 +314,12 @@ function resupplyBody(tripId, items, askDelete) {
       if (storeBox.value !== store.resupplyStore()) store.setResupplyStore(storeBox.value);
       store.markOrdered(i.id);
     });
-    return h('li', {}, btn);
+    const a = h('a', { class: 'search-btn', target: '_blank', rel: 'noopener', 'aria-label': `Search the store for ${i.name}` }, '🔎');
+    links.push({ a, name: i.name });
+    return h('li', { class: 'search-row' }, btn, a);
   });
+  storeBox.addEventListener('input', syncLinks);
+  syncLinks();
 
   const groups = new Map();
   items.filter((i) => i.ordered).forEach((i) => {

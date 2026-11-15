@@ -205,7 +205,34 @@ function footer(go) {
     h('div', { class: 'mode-switch', role: 'group', 'aria-label': 'Day or night mode' },
       h('button', { class: mode === 'light' ? 'on' : '', 'aria-pressed': String(mode === 'light'), onclick: () => pick('light') }, '☀️ Day'),
       h('button', { class: mode === 'dark' ? 'on' : '', 'aria-pressed': String(mode === 'dark'), onclick: () => pick('dark') }, '🌙 Night')),
-    h('p', { class: 'version', text: `Packer · ${APP_VERSION}` }));
+    versionButton());
+}
+
+// Tap the version text to check for a newer version; if there is one, clear the offline copy and reload.
+function versionButton() {
+  const label = `Packer · ${APP_VERSION}`;
+  const btn = h('button', { class: 'version', type: 'button', 'aria-label': `${label}. Tap to check for updates.`, text: label });
+  let busy = false;
+  const flash = (msg, ms = 2500) => { btn.textContent = msg; setTimeout(() => { btn.textContent = label; busy = false; }, ms); };
+  btn.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true;
+    btn.textContent = 'Checking…';
+    try {
+      const res = await fetch('js/version.js?fresh=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('offline');
+      const latest = ((await res.text()).match(/APP_VERSION\s*=\s*'([^']+)'/) || [])[1];
+      if (!latest || latest === APP_VERSION) return flash('Up to date');
+      btn.textContent = `Updating to ${latest}…`;
+      const reg = await navigator.serviceWorker?.getRegistration();
+      await reg?.update().catch(() => {});
+      if (window.caches) for (const k of await caches.keys()) if (k.startsWith('packlist-')) await caches.delete(k);
+      location.reload();
+    } catch {
+      flash('No signal. Try again later.');
+    }
+  });
+  return btn;
 }
 
 /** Trip notes: one card per note, saved as you type, with + to add a card. */

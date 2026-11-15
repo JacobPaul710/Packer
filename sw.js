@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION with every patch so phones pick up the new files.
-const VERSION = 'patch-22';
+const VERSION = 'patch-23';
 const CACHE = 'packlist-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
@@ -24,6 +24,7 @@ self.addEventListener('fetch', (e) => {
   const isOwn = url.origin === self.location.origin;
   const isFirebaseCode = url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/');
   if (!isOwn && !isFirebaseCode) return; // database traffic goes straight to the network
+  if (isOwn && url.searchParams.has('fresh')) return; // update checks always ask the server
 
   // Use the saved copy right away; refresh it in the background when online.
   e.respondWith(caches.open(CACHE).then(async (cache) => {

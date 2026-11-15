@@ -246,7 +246,7 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
   font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
 }
 .mode-switch button.on { background: var(--accent); color: #fff; }
-.version { color: var(--muted); font-size: 14px; margin: 0; }
+.version { color: var(--muted); font-size: 14px; margin: 0; padding: 4px 8px; background: none; border: 0; font: inherit; font-size: 14px; cursor: pointer; }
 
 /* ---------- items with parts (Puffco) ---------- */
 .item.has-parts { cursor: default; }

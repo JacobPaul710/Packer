@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION with every patch so phones pick up the new files.
-const VERSION = 'v1.0.0';
+const VERSION = 'v0.18.19';
 const CACHE = 'packlist-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',

@@ -1,2 +1,3 @@
-// Shown at the bottom of the home screen. Keep in step with VERSION in sw.js.
-export const APP_VERSION = 'Patch 25';
+// Shown at the bottom of the home screen. Semantic version: MAJOR.MINOR.PATCH
+// (bug fix -> PATCH, new feature -> MINOR, big overhaul -> MAJOR). Keep in step with VERSION in sw.js.
+export const APP_VERSION = 'v1.0.0';

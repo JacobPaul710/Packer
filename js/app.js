@@ -18,7 +18,7 @@ function render() {
 
   let screen;
   const m = hash.match(/^#\/trip\/(.+)$/);
-  if (sync.getStatus().state === 'signedOut') screen = signInScreen();
+  if (sync.getStatus().state === 'signedOut') screen = signInScreen({ render });
   else if (hash === '#/notes') screen = notesScreen({ go });
   else if (m) screen = tripScreen({ tripId: decodeURIComponent(m[1]), go, render });
   else screen = homeScreen({ go });
@@ -34,7 +34,13 @@ applyMode();
 store.load();
 store.subscribe((d, what) => { if (what !== 'notes') render(); });
 let lastState = null;
-sync.onStatus((st) => { const gate = st.state === 'signedOut'; if (gate !== lastState) { lastState = gate; render(); } });
+let lastEmail = null;
+sync.onStatus((st) => {
+  const gate = st.state === 'signedOut';
+  if (gate !== lastState) { lastState = gate; render(); }
+  else if ((st.email || '') !== lastEmail && !location.hash.startsWith('#/notes')) render(); // show who is signed in
+  lastEmail = st.email || '';
+});
 window.addEventListener('hashchange', render);
 // Progress bar gets a solid background only while it is stuck under the top bar.
 function markStuck() {

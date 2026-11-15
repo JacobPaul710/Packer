@@ -205,7 +205,18 @@ function footer(go) {
     h('div', { class: 'mode-switch', role: 'group', 'aria-label': 'Day or night mode' },
       h('button', { class: mode === 'light' ? 'on' : '', 'aria-pressed': String(mode === 'light'), onclick: () => pick('light') }, '☀️ Day'),
       h('button', { class: mode === 'dark' ? 'on' : '', 'aria-pressed': String(mode === 'dark'), onclick: () => pick('dark') }, '🌙 Night')),
-    versionButton());
+    versionButton(),
+    accountLine());
+}
+
+// Who is signed in, small; tap to sign out.
+function accountLine() {
+  const st = sync.getStatus();
+  if (!st.email) return null;
+  return h('button', { class: 'version account', type: 'button', 'aria-label': `Signed in as ${st.email}. Tap to sign out.`, onclick: async () => {
+    const ok = await confirmBox({ title: 'Sign out?', message: 'Your lists stay on this device. They stop syncing until you sign in again.', ok: 'Sign out' });
+    if (ok) await sync.signOut();
+  } }, `${st.email} · Sign out`);
 }
 
 // Tap the version text to check for a newer version; if there is one, clear the offline copy and reload.
@@ -501,14 +512,56 @@ export function tripScreen({ tripId, go, render }) {
 }
 
 /** Shown once, the first time you open the app (only when sync is set up). */
-export function signInScreen() {
-  const email = h('input', { type: 'email', class: 'field', autocomplete: 'username', 'aria-label': 'Email', inputmode: 'email' });
-  const pass = h('input', { type: 'password', class: 'field', autocomplete: 'current-password', 'aria-label': 'Password' });
+// Sign in, or create an account on its own page. Shown only when sync is set up and nobody is signed in.
+let authMode = 'signin';
+export function signInScreen({ render }) {
+  const field = (type, label, auto) => h('input', { type, class: 'field', autocomplete: auto, 'aria-label': label, ...(type === 'email' ? { inputmode: 'email' } : {}) });
   const err = h('p', { class: 'error hidden' });
-  const run = async (fn) => {
-    err.classList.add('hidden');
-    try { await fn(email.value, pass.value); } catch (e) { err.textContent = sync.friendly(e); err.classList.remove('hidden'); }
+  const fail = (msg) => { err.textContent = msg; err.classList.remove('hidden'); };
+  const swap = (mode) => { authMode = mode; render(); };
+  // "Show password" switch for every password box on the page
+  const showToggle = (...boxes) => {
+    const row = h('button', { class: 'check-row show-pass', type: 'button', 'aria-pressed': 'false' }, h('span', { class: 'box', text: icon.check }), h('span', { text: 'Show password' }));
+    row.addEventListener('click', () => {
+      const on = row.getAttribute('aria-pressed') !== 'true';
+      row.setAttribute('aria-pressed', String(on)); row.classList.toggle('on', on);
+      boxes.forEach((b) => { b.type = on ? 'text' : 'password'; });
+    });
+    return row;
   };
+
+  if (authMode === 'create') {
+    const email = field('email', 'Email', 'username'), pass = field('password', 'Password', 'new-password'), again = field('password', 'Confirm password', 'new-password');
+    const create = async () => {
+      err.classList.add('hidden');
+      if (!email.value.trim()) return fail('Type your email.');
+      if (pass.value.length < 6) return fail('Password must be at least 6 characters.');
+      if (pass.value !== again.value) return fail('The passwords don\u2019t match.');
+      try {
+        await sync.createAccount(email.value, pass.value);
+        authMode = 'signin';
+        notice('Account created', `You\u2019re signed in as ${email.value.trim()}.`);
+      } catch (e) { fail(sync.friendly(e)); }
+    };
+    return h('div', { class: 'screen' },
+      header({ back: { label: 'Sign in', onClick: () => swap('signin') }, title: 'Create account' }),
+      h('main', { class: 'content' },
+        h('section', { class: 'card' },
+          h('h2', { class: 'card-title', text: 'Create account' }),
+          h('label', { class: 'label' }, 'Email', email),
+          h('label', { class: 'label' }, 'Password', pass),
+          h('label', { class: 'label' }, 'Password again', again),
+          showToggle(pass, again),
+          err,
+          h('button', { class: 'btn primary wide', onclick: create }, 'Create account'))));
+  }
+
+  const email = field('email', 'Email', 'username'), pass = field('password', 'Password', 'current-password');
+  const signIn = async () => {
+    err.classList.add('hidden');
+    try { await sync.signIn(email.value, pass.value); } catch (e) { fail(sync.friendly(e)); }
+  };
+  pass.addEventListener('keydown', (e) => { if (e.key === 'Enter') signIn(); });
   return h('div', { class: 'screen' },
     header({ title: 'Packer' }),
     h('main', { class: 'content' },
@@ -517,7 +570,16 @@ export function signInScreen() {
         h('p', { class: 'muted', text: 'Do this once on each device. Your lists then stay the same everywhere, automatically.' }),
         h('label', { class: 'label' }, 'Email', email),
         h('label', { class: 'label' }, 'Password', pass),
+        showToggle(pass),
         err,
-        h('button', { class: 'btn primary wide', onclick: () => run(sync.signIn) }, 'Sign in'),
-        h('button', { class: 'btn wide', onclick: () => run(sync.createAccount) }, 'Create account'))));
+        h('button', { class: 'btn primary wide', onclick: signIn }, 'Sign in'),
+        h('button', { class: 'btn wide', onclick: () => swap('create') }, 'Create account'))));
+}
+
+/** A simple message popup with one OK button. */
+function notice(title, message) {
+  return openSheet((s, close) => {
+    s.append(h('h2', { class: 'sheet-title', text: title }), h('p', { class: 'sheet-text', text: message }),
+      h('div', { class: 'actions' }, h('button', { class: 'btn primary', style: 'grid-column: 1 / -1', onclick: () => close(true) }, 'OK')));
+  });
 }

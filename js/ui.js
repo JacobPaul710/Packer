@@ -271,7 +271,7 @@ const ICONS = {
   'h-clothes': '👕', 'h-necessities': '🎒', 'h-hygiene': '🪥', 'h-medication': '💊', 'h-bedding': '🛏️',
   'h-essentials': '🪓', 'h-garage': '🏠', 'h-bin': '🧰', 'h-last-minute': '⏰', 'h-artimes': '🐕',
   'h-scouting': '💻', 'h-coding': '💻', 'h-rock-tools': '⛏️', 'h-sunstone': '🔦', 'h-fun': '🎸', 'h-winter': '❄️',
-  'h-meal-choices': '🍽️', 'h-unpack': '📥', 'h-truck': '🛻', 'h-icebox': '🗃️', 'h-resupply': '🛒', 'h-seasonal': '🍂',
+  'h-meal-choices': '🍽️', 'h-unpack': '📥', 'h-truck': '🛻', 'h-icebox': '🗃️', 'h-resupply': '🛒', 'h-seasonal': '❄️',
 };
 const iconFor = (h) => h.icon || ICONS[h.id] || '📦';
 

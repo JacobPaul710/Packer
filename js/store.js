@@ -37,7 +37,7 @@ function seed() { const d = emptyData(); addStarter(d); return d; }
 
 // ---------- persistence ----------
 const MIGRATED = 'packlist.migrated';
-const CURRENT = '18';
+const CURRENT = '19';
 
 export function load() {
   try { data = JSON.parse(localStorage.getItem(KEY)); } catch { data = null; }
@@ -58,6 +58,7 @@ function migrate() {
   if (from < 16) migrate16();
   if (from < 17) migrate17();
   if (from < 18) migrate18();
+  if (from < 19) migrate19();
   save(false);
   localStorage.setItem(MIGRATED, CURRENT);
 }
@@ -127,6 +128,23 @@ function migrate16() {
     const h = data.headings[id];
     if (h && !h.deleted) data.headings[id] = { ...h, order, updatedAt: t };
   });
+}
+
+// Patch 21: Seasonal becomes Winter, an optional category on every trip (kindling/firewood included).
+function migrate19() {
+  const t = now();
+  const sea = data.headings['h-seasonal'];
+  if (!sea || sea.deleted) return;
+  const { optionalSubs, ...rest } = sea;
+  data.headings['h-seasonal'] = { ...rest, name: 'Winter', optional: true, updatedAt: t };
+  for (const i of Object.values(data.items)) {
+    if (i.deleted || i.headingId !== 'h-seasonal') continue;
+    const { sub, ...item } = i;
+    data.items[i.id] = { ...item, trips: ['t-camp', 't-scout', 't-rock'], updatedAt: t };
+  }
+  for (const tripId of ['t-camp', 't-scout', 't-rock']) {
+    if (data.sections?.[tripId + '|h-seasonal#Winter']?.v) data.sections[tripId + '|h-seasonal'] = { v: true, updatedAt: t };
+  }
 }
 
 // Patch 20: Winter becomes a tick-to-open group inside Seasonal; Seasonal moves above Fun stuff.

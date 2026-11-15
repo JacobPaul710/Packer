@@ -37,7 +37,7 @@ function seed() { const d = emptyData(); addStarter(d); return d; }
 
 // ---------- persistence ----------
 const MIGRATED = 'packlist.migrated';
-const CURRENT = '15';
+const CURRENT = '16';
 
 export function load() {
   try { data = JSON.parse(localStorage.getItem(KEY)); } catch { data = null; }
@@ -55,6 +55,7 @@ function migrate() {
   if (from < 13) migrate13();
   if (from < 14) migrate14();
   if (from < 15) migrate15();
+  if (from < 16) migrate16();
   save(false);
   localStorage.setItem(MIGRATED, CURRENT);
 }
@@ -115,6 +116,15 @@ function migrate15() {
   for (const i of Object.values(data.items)) if (!i.deleted && i.headingId === 'h-icebox') upd(i, { deleted: true });
   const ib = data.headings['h-icebox'];
   if (ib && !ib.deleted) data.headings['h-icebox'] = { ...ib, deleted: true, updatedAt: t };
+}
+
+// Patch 18: Last minute stuff first, then Morning of trip, Day before trip, Fridge.
+function migrate16() {
+  const t = now();
+  [['h-last-minute', 0], ['h-morning', 1], ['h-day-before', 2], ['h-fridge', 3]].forEach(([id, order]) => {
+    const h = data.headings[id];
+    if (h && !h.deleted) data.headings[id] = { ...h, order, updatedAt: t };
+  });
 }
 
 function migrate9() {

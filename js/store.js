@@ -288,6 +288,10 @@ export function noteCards() {
     .map((n) => ({ ...n, title: n.title || DEFAULT_TITLES[n.id] || 'Notes' }))
     .sort((a, b) => (a.order ?? (a.id === 'oregon' ? 0 : 1)) - (b.order ?? (b.id === 'oregon' ? 0 : 1)));
 }
+export function deleteNoteCard(id) {
+  data.notes[id] = { ...(data.notes[id] || { id }), deleted: true, updatedAt: now() };
+  save(false); listeners.forEach((fn) => fn(data, 'notes'));
+}
 export function addNoteCard(title) {
   const id = 'n-' + uid();
   const order = Math.max(1, ...noteCards().map((n) => n.order ?? 1)) + 1;

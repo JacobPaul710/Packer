@@ -263,9 +263,25 @@ export function notesScreen({ go }) {
     const title = await titleBox();
     if (title) { store.addNoteCard(title); go('#/notes'); }
   } }, '+');
+  const remove = h('button', { class: 'add-btn add-card', 'aria-label': 'Delete a notes card', onclick: async () => {
+    flushAll();
+    const card = await pickCard(store.noteCards());
+    if (!card) return;
+    const ok = await confirmBox({ title: `Delete “${card.title}”?`, message: 'The card and everything written in it are deleted.', ok: 'Delete', danger: true });
+    if (ok) { store.deleteNoteCard(card.id); go('#/notes'); }
+  } }, '−');
   return h('div', { class: 'screen' },
     header({ back: { label: 'Trips', onClick: () => { flushAll(); go('#/'); } }, title: 'Trip notes' }),
-    h('main', { class: 'content' }, boxes.map((b) => b.el), add, saved));
+    h('main', { class: 'content' }, boxes.map((b) => b.el), h('div', { class: 'card-tools' }, add, cards.length ? remove : null), saved));
+}
+
+/** Pick a notes card to delete. */
+function pickCard(cards) {
+  return openSheet((s, close) => {
+    s.append(h('h2', { class: 'sheet-title', text: 'Delete which card?' }),
+      h('div', { class: 'check-list' }, cards.map((c) => h('button', { class: 'check-row', type: 'button', onclick: () => close(c) }, h('span', { text: c.title })))),
+      h('div', { class: 'actions' }, h('button', { class: 'btn', onclick: () => close(null) }, 'Cancel')));
+  });
 }
 
 function titleBox() {

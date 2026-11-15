@@ -261,7 +261,7 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .resupply { display: flex; flex-direction: column; gap: 10px; padding-bottom: 4px; }
 .order-group { display: flex; flex-direction: column; gap: 6px; }
 .order-head { margin: 4px 4px 0; font-weight: 700; color: var(--muted); font-size: 15px; }
-.add-card { align-self: center; }
+.card-tools { display: flex; justify-content: center; gap: 12px; }
 .last-saved { margin-top: 0; }
 
 /* tick-to-open group inside a category (Winter) */
